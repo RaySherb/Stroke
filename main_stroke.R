@@ -83,11 +83,22 @@ stroke %>% group_by(stroke, hypertension) %>% summarise(n=n()) %>%
 #############################################################
 
 # Remove the solution vector
-y <- stroke$stroke
-stroke <- stroke %>% select(-stroke)
+#y <- stroke$stroke
+#stroke <- stroke %>% select(-stroke)
 # Get a test/train set of data
 set.seed(69, sample.kind = 'Rounding')
 test_index <- createDataPartition(y, times = 1, p = 0.1, list = FALSE)
 test <- stroke[test_index, ]
 train <- stroke[-test_index, ]
 rm(test_index)
+
+# Baseline will be predicting the 'healthy' for entire population
+
+# Tree method
+train_rpart <- train(stroke ~ .,
+                     method='rpart',
+                     data=train,
+                     tuneGrid=data.frame(cp=seq(0, 0.05, len=25)))
+ggplot(train_rpart, highlight=T)
+plot(train_rpart$finalModel, margin=0.1)
+text(train_rpart$finalModel, cex=0.75)

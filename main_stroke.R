@@ -1,8 +1,15 @@
+# Load
+#######################################################################################################
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(scales)) install.packages("scales", repos = "http://cran.us.r-project.org")
+if(!require(ROSE)) install.packages("ROSE", repos = "http://cran.us.r-project.org")
 # Load libraries
 library(tidyverse)
-library(caret)
-library(scales)
-
+library(caret) # Machine learning algos
+library(scales) # Custom ggplot axis scales
+library(ROSE) # Data balancing
+# Data source: https://www.kaggle.com/fedesoriano/stroke-prediction-dataset
 # Load the stroke data
 healthcare_data <- read_csv('healthcare-dataset-stroke-data.csv')
 # Extract Validation set
@@ -10,12 +17,14 @@ set.seed(420, sample.kind = 'Rounding')
 test_index <- createDataPartition(healthcare_data$stroke, times = 1, p = 0.5, list = FALSE)
 validation_set <- healthcare_data[test_index, ]
 stroke <- healthcare_data[-test_index, ]
-# Remove variables
+# Remove un-needed variables
 rm(test_index, healthcare_data)
+#######################################################################################################
 
-# Explore, Munge, Visualize
-summary(stroke)
 
+
+# Munge
+#######################################################################################################
 # Smoking status as factor, & reorder to appear better in plots
 stroke <- stroke %>% mutate(smoking_status=fct_relevel(as.factor(smoking_status), 
                                                        'smokes',
@@ -32,7 +41,14 @@ stroke <- stroke %>% mutate(gender=as.factor(gender),
                             stroke=as.factor(stroke),
                             bmi=as.numeric(bmi)) # bmi has NA's
 
+# Replace NA values in BMI to mean
+stroke$bmi[is.na(stroke$bmi)] <- mean(stroke$bmi, na.rm = TRUE)
+#######################################################################################################
 
+
+
+# Exploratory Data Visualization
+#######################################################################################################
 # Barplot of stroke & gender
 stroke %>% group_by(stroke, gender) %>% summarise(n=n()) %>%
   ggplot(aes(x=stroke, fill=gender, y=n))+
@@ -82,18 +98,20 @@ stroke %>% group_by(stroke, hypertension) %>% summarise(n=n()) %>%
   ggplot(aes(x=hypertension, y=n, color=stroke))+
     geom_col(position='fill')
 
-
-#############################################################
-# Ok so we can make some more pretty plots but the data looks
-# like there are a bunch of small predictors with no clear
-# patterns to take advantage of when predicting
-# ---------------------------------------------------------
-# Time to make some models
-# 
-#############################################################
+# BMI
+stroke %>% #mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>% 
+  arrange(stroke) %>%
+  ggplot(aes(x=bmi, y=avg_glucose_level, color=stroke))+
+  geom_point()
+#######################################################################################################
 
 
+
+# Model --WARNING-- AUC was better with the bmi removed!
+#######################################################################################################
+# Remove bmi for now due to na values that will mess up the models
 stroke <- stroke %>% select(-bmi)
+
 # Get a test/train set of data
 set.seed(69, sample.kind = 'Rounding')
 test_index <- createDataPartition(stroke$stroke, times = 1, p = 0.1, list = FALSE)
@@ -101,27 +119,120 @@ test <- stroke[test_index, ]
 train <- stroke[-test_index, ]
 rm(test_index)
 
-# Baseline will be predicting the 'healthy' for entire population
-# Sensitivity = 0
-# Specificity = 1
-mean(train$stroke == 0)
+# Baseline
+#----------------------------------------------------
+# Predicting the 'healthy' for entire population
+# (Sensitivity = 0) & (Specificity = 1)
+useless <- mean(train$stroke == 0)
 
-# Tree method
+
+
+# Descision Tree
+#----------------------------------------------------
 train_tree <- train(stroke ~ .,
-                     method='rpart',
-                     data=train,
-                     tuneGrid=data.frame(cp=seq(0, 0.05, len=25)))
+                    method='rpart',
+                    data=train,
+                    tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
 ggplot(train_tree, highlight=T)
-plot(train_tree$finalModel, margin = 0.1)
-text(train_tree$finalModel)
+#plot(train_tree$finalModel, margin = 0.1)
+#text(train_tree$finalModel)
 y_hat_tree <- predict(train_tree, test)
+
+# Evaluate Tree Model
 confusionMatrix(y_hat_tree, test$stroke)$overall["Accuracy"]
+accuracy.meas(test$stroke, y_hat_tree) #ROSE
+roc.curve(test$stroke, y_hat_tree) #ROSE
+#######################################################################################################
+
+
+
+# Data Balancing
+#######################################################################################################
+# Unbalanced
+table(train$stroke)
+prop.table(table(train$stroke))
+
+# Over-sample
+train.over <- ovun.sample(stroke ~ ., data=train, method='over', N=2183*2)$data
+table(train.over$stroke)
+
+# Under-sample
+train.under <- ovun.sample(stroke ~ ., data=train, method='under', N=116*2)$data
+table(train.under$stroke)
+
+# Over & Under
+train.both <- ovun.sample(stroke ~ ., data=train, method='both', p=0.5)$data
+table(train.both$stroke)
+
+# Inject Synthetic Data
+train.rose <- ROSE(stroke ~ ., data=train, seed = 69)$data
+table(train.rose$stroke)
+
+# Select best data-balancing technique based on ROC of tree model
+tree.over <- train(stroke ~ ., method='rpart', data=train.over, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
+tree.under <- train(stroke ~ ., method='rpart', data=train.under, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
+tree.both <- train(stroke ~ ., method='rpart', data=train.both, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
+tree.rose <- train(stroke ~ ., method='rpart', data=train.rose, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
+pred.tree.over <- predict(tree.over, test)
+pred.tree.under <- predict(tree.under, test)
+pred.tree.both <- predict(tree.both, test)
+pred.tree.rose <- predict(tree.rose, test)
+roc.curve(test$stroke, y_hat_tree, col=2, lwd=2)
+roc.curve(test$stroke, pred.tree.over, add.roc = T, col=3, lwd=2)
+roc.curve(test$stroke, pred.tree.under, add.roc = T, col=4, lwd=2)
+roc.curve(test$stroke, pred.tree.both, add.roc = T, col=5, lwd=2)
+roc.curve(test$stroke, pred.tree.rose, add.roc = T, col=6, lwd=2)
+legend('bottomright', c('Not Balanced', 'Over', 'Under', 'Both', 'ROSE'), col=2:6, lwd=2)
+
+# Remove un-needed data & Keep ROSE data
+rm(train.over, train.under, train.both, tree.over, tree.under, tree.both, pred.over, pred.under, pred.both,
+   train, train_tree, y_hat_tree, pred.tree.both, pred.tree.over, pred.tree.under)
+# ROSE tree measures
+confusionMatrix(pred.tree.rose, test$stroke)#$overall["Accuracy"]
+accuracy.meas(test$stroke, pred.tree.rose) #ROSE
+#######################################################################################################
+
+
+
+# Model Part 2
+#######################################################################################################
+# Tree
+#----------------------------------------------------
+roc.curve(test$stroke, pred.tree.rose, col=2, lwd=2)
+
+# GLM
+#----------------------------------------------------
+glm.rose <- train(stroke ~ ., method='glm', data=train.rose)
+pred.glm.rose <- predict(glm.rose, test)
+roc.curve(test$stroke, pred.glm.rose, add.roc = T, col=3, lwd=2)
+
+# KNN
+#----------------------------------------------------
+knn.rose <- train(stroke ~ ., method='knn', data=train.rose)
+pred.knn.rose <- predict(knn.rose, test)
+roc.curve(test$stroke, pred.knn.rose, add.roc = T, col=4, lwd=2)
 
 # Random Forest
-train_forest <- train(stroke ~ .,
-                      method='rf',
-                      nodeSize=1,
-                      tuneGrid = data.frame(mtry = seq(50, 200, 25)),
-                      data=train)
-ggplot(train_forest)
-confusionMatrix(predict(train_forest, test), test$stroke)
+#----------------------------------------------------
+rf.rose <- train(stroke ~ ., method='rf', data=train.rose)
+pred.rf.rose <- predict(rf.rose, test)
+roc.curve(test$stroke, pred.rf.rose, add.roc = T, col=5, lwd=2)
+
+# LDA
+#----------------------------------------------------
+lda.rose <- train(stroke ~ ., method='lda', data=train.rose)
+pred.lda.rose <- predict(lda.rose, test)
+roc.curve(test$stroke, pred.lda.rose, add.roc = T, col=6, lwd=2)
+
+# Ensemble
+#----------------------------------------------------
+p.tree <- predict(tree.rose, test, type='prob')
+p.rf <- predict(rf.rose, test, type='prob')
+p.glm <- predict(glm.rose, test, type='prob')
+p.knn <- predict(knn.rose, test, type='prob')
+p.lda <- predict(lda.rose, test, type='prob')
+ensemble <- (p.tree + p.lda)/2#(p.tree + p.rf + p.glm + p.knn + p.lda)/5
+pred.ensemble <- factor(apply(ensemble, 1, which.max)-1)
+roc.curve(test$stroke, pred.ensemble, add.roc = T, col=18, lwd=2)
+
+legend('bottomright', c('Tree', 'GLM', 'KNN', 'Random Forest', 'LDA', 'Ensemble'), col=c(2:6, 8), lwd=2)

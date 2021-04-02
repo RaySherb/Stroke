@@ -1,0 +1,43 @@
+---
+title: "Stroke Prediction"
+author: "Ray Sherbourne"
+date: "4/2/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Project Overview
+
+Strokes account for 11% of global deaths according to the WHO (World Health Organization). The goal of this project is to develop a predictive model that can be used as an aid to identify at-risk individuals. The data is downloaded from kaggle.com. The author, fedesoriano, states the source is confidential. 
+
+The data set contains 5110 observations and 12 predictors including the binary outcome indicating stroke. The predictors also include an anonymous id, and information for gender, age, hypertension, heart disease, ever married, work type, residence type, average glucose level, body mass index, and smoking status. No other background information is given about the data. 
+
+After a validation set has been partitioned from the data, the remaining data will be cleaned, explored, and used to build several models. The best model will be tested against the validation set, and the resulting scores will determine if the goal of this project succeeded. The main score that will be used to grade performance will be the **Precision**. Precision is defined as the proportion of predicted positive cases that are actually positive.
+
+# Method
+
+The data was downloaded as a zip file from the kaggle website, extracted into the working directory of this project, and read into R. Because the data set is relatively small, only 10% was set aside as the validation set. The remaining data is cleaned by setting the predictor values from character types to either numeric values or factors.
+The bmi predictor has numerous NA values that will not work with the machine learning algorithms. For now these NA values are replaced with the average value for the sake of exploration.
+
+The first plot shows that the data contains more observations of females the proportional difference in strokes is not obvious however.
+
+This plot shows that the rate of strokes is about the same between genders.
+
+The next plot shows a cumulative distribution function of stroke patients for age and gender. Females have an exponential curve where the liklihood of a stroke increases rather smoothly. Men start off low and see a sharp increase in their mid to late 50's, overtaking the women until they even out in the early 70's.
+
+The next plot shows a histogram of average glucose level. The distribution is bimodal with the higher glucose levels being less prevalent and much higher percentage of strokes.
+
+The next bar plot shows a bar of stroke positive and a bar of stroke negative cases, filled in with smoking status. Non smokers appear equally likely to get a stroke. The same is true for patients who smoke their entire life. This graph suggests that quitting increases the chances of getting a stroke. 
+
+It is not clear if the stroke cases quit smoking for a few days and promptly relapsed, or if the non stroke patients quit smoking after only several years of smoking. There is no way to account for length of smoking abstinence with the given data, however the next plot shows a CDF of strokes and age for each of the smoking categories. This plot suggests that smokers get strokes earlier than non smokers, and former smokers are clearly having strokes at older ages than people who did not quit.
+
+The next plot shows that hypertension is higher in stroke patients than non stroke patients.
+
+The next plot trys to find a relationship between bmi and average glucose level. A relationship with bmi is wanted because there are so many NA values in the data. As it appears there is no strong relationship, and the average value is skewing the data, the bmi predictor must be dropped from the data before moving onto the model building.
+
+# Citation
+
+https://www.kaggle.com/fedesoriano/stroke-prediction-dataset

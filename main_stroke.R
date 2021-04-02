@@ -29,8 +29,8 @@ rm(test_index, healthcare_data)
 stroke <- stroke %>% mutate(smoking_status=fct_relevel(as.factor(smoking_status), 
                                                        'smokes',
                                                        'formerly smoked',
-                                                       'never smoked',
-                                                       'Unknown'))
+                                                       'Unknown',
+                                                       'never smoked'))
 # Other variables as factors will help models later on
 stroke <- stroke %>% mutate(gender=as.factor(gender),
                             hypertension=as.factor(hypertension),
@@ -43,7 +43,6 @@ stroke <- stroke %>% mutate(gender=as.factor(gender),
 
 # Replace NA values in BMI to mean
 stroke$bmi[is.na(stroke$bmi)] <- mean(stroke$bmi, na.rm = TRUE)
-stroke <- stroke %>% select(-bmi)
 #######################################################################################################
 
 
@@ -71,9 +70,9 @@ stroke[stroke$stroke == 1, ] %>% group_by(gender) %>%
   ggplot(aes(x=age, color=gender))+
   stat_ecdf(geom = 'step')+
   scale_y_continuous(label=scales::percent)+
-  ylab('Percentage of strokes that have already occured')
-# Probability of stroke in men as a function of age is smooth exponential
-# Women have a steep increase later in life
+  ylab('Strokes Occured')
+# Probability of stroke in women as a function of age is smooth exponential
+# men have a steep increase later in life
 
 stroke %>% group_by(stroke) %>%
   ggplot(aes(x=avg_glucose_level, color=stroke))+
@@ -91,13 +90,16 @@ stroke %>% group_by(smoking_status, stroke) %>% summarise(n=n()) %>%
 stroke[stroke$stroke == 1, ] %>% group_by(smoking_status) %>%
      ggplot(aes(x=age, color=smoking_status))+
      stat_ecdf(geom = 'step')+
-     scale_y_continuous(label=scales::percent)
+     scale_y_continuous(label=scales::percent)+
+     ylab('Strokes Occured')
 # The people who quite smoking, but got a stroke anyway lasted longer than smokers
 
 # Hypertension (high blood pressure), heart disease, & high bmi
 stroke %>% group_by(stroke, hypertension) %>% summarise(n=n()) %>%
   ggplot(aes(x=hypertension, y=n, color=stroke))+
-    geom_col(position='fill')
+  scale_y_continuous(label=scales::percent)+
+  ylab('Proportion')+
+  geom_col(position='fill')
 
 # BMI
 stroke %>% #mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>% 
@@ -110,8 +112,8 @@ stroke %>% #mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>%
 
 # Model --WARNING-- AUC was better with the bmi removed!
 #######################################################################################################
-# Remove bmi for now due to na values that will mess up the models
-# stroke <- stroke %>% select(-bmi)
+# Remove variables that negatively impact models
+stroke <- stroke %>% select(-bmi, -id)
 
 # Get a test/train set of data
 set.seed(69, sample.kind = 'Rounding')

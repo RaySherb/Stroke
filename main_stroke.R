@@ -43,6 +43,7 @@ stroke <- stroke %>% mutate(gender=as.factor(gender),
 
 # Replace NA values in BMI to mean
 stroke$bmi[is.na(stroke$bmi)] <- mean(stroke$bmi, na.rm = TRUE)
+stroke <- stroke %>% select(-bmi)
 #######################################################################################################
 
 
@@ -110,7 +111,7 @@ stroke %>% #mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>%
 # Model --WARNING-- AUC was better with the bmi removed!
 #######################################################################################################
 # Remove bmi for now due to na values that will mess up the models
-stroke <- stroke %>% select(-bmi)
+# stroke <- stroke %>% select(-bmi)
 
 # Get a test/train set of data
 set.seed(69, sample.kind = 'Rounding')
@@ -224,15 +225,44 @@ lda.rose <- train(stroke ~ ., method='lda', data=train.rose)
 pred.lda.rose <- predict(lda.rose, test)
 roc.curve(test$stroke, pred.lda.rose, add.roc = T, col=6, lwd=2)
 
-# Ensemble
+# Ensemble Try v2
 #----------------------------------------------------
-p.tree <- predict(tree.rose, test, type='prob')
-p.rf <- predict(rf.rose, test, type='prob')
-p.glm <- predict(glm.rose, test, type='prob')
-p.knn <- predict(knn.rose, test, type='prob')
-p.lda <- predict(lda.rose, test, type='prob')
-ensemble <- (p.tree + p.lda)/2#(p.tree + p.rf + p.glm + p.knn + p.lda)/5
-pred.ensemble <- factor(apply(ensemble, 1, which.max)-1)
-roc.curve(test$stroke, pred.ensemble, add.roc = T, col=18, lwd=2)
+set.seed(69, sample.kind = "Rounding")
+# Machine learning models to implement in ensemble
+models <- c("glm", "lda", "naive_bayes", "svmLinear", "knn", "multinom", "lda", "rf", "adaboost")
+# Fit all the models to the trainging data
+fits <- lapply(models, function(model){ 
+  print(model)
+  train(stroke ~ ., method = model, data = train.rose)
+}) 
+# column names as the model names
+names(fits) <- models
+
+# Generate a matrix of predictions
+pred <- sapply(fits, function(object) 
+  predict(object, newdata = test))
+dim(pred)
+# Get the average accuracy of each model
+acc <- colMeans(pred == test$stroke)
+# Get the mean accuracy of all models
+mean(acc)
+# Each model gets a vote
+votes <- rowMeans(pred == "1")
+# The majority of votes wins
+y_hat <- ifelse(votes > 0.5, "1", "0")
+mean(y_hat == test$stroke)
+confusionMatrix(as.factor(y_hat), test$stroke)
 
 legend('bottomright', c('Tree', 'GLM', 'KNN', 'Random Forest', 'LDA', 'Ensemble'), col=c(2:6, 8), lwd=2)
+
+#https://learning.edx.org/course/course-v1:HarvardX+PH125.8x+1T2021/block-v1:HarvardX+PH125.8x+1T2021+type@sequential+block@7e7727ce543b4ed6ae6338626862eada/block-v1:HarvardX+PH125.8x+1T2021+type@vertical+block@4931485b1e0f43239240160db2dcf3d3
+# Ensemble Try v1
+#----------------------------------------------------
+#p.tree <- predict(tree.rose, test, type='prob')
+#p.rf <- predict(rf.rose, test, type='prob')
+#p.glm <- predict(glm.rose, test, type='prob')
+#p.knn <- predict(knn.rose, test, type='prob')
+#p.lda <- predict(lda.rose, test, type='prob')
+#ensemble <- (p.tree + p.lda)/2#(p.tree + p.rf + p.glm + p.knn + p.lda)/5
+#pred.ensemble <- factor(apply(ensemble, 1, which.max)-1)
+#roc.curve(test$stroke, pred.ensemble, add.roc = T, col=18, lwd=2)

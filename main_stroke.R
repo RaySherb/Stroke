@@ -113,22 +113,14 @@ stroke %>% #mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>%
 # Model --WARNING-- AUC was better with the bmi removed!
 #######################################################################################################
 # Remove variables that negatively impact models
-stroke <- stroke %>% select(-bmi, -id)
+strokes <- stroke %>% select(-bmi, -id)
 
 # Get a test/train set of data
 set.seed(69, sample.kind = 'Rounding')
-test_index <- createDataPartition(stroke$stroke, times = 1, p = 0.1, list = FALSE)
-test <- stroke[test_index, ]
-train <- stroke[-test_index, ]
+test_index <- createDataPartition(strokes$stroke, times = 1, p = 0.1, list = FALSE)
+test <- strokes[test_index, ]
+train <- strokes[-test_index, ]
 rm(test_index)
-
-# Baseline
-#----------------------------------------------------
-# Predicting the 'healthy' for entire population
-# (Sensitivity = 0) & (Specificity = 1)
-useless <- mean(train$stroke == 0)
-
-
 
 # Descision Tree
 #----------------------------------------------------
@@ -137,8 +129,6 @@ train_tree <- train(stroke ~ .,
                     data=train,
                     tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
 ggplot(train_tree, highlight=T)
-#plot(train_tree$finalModel, margin = 0.1)
-#text(train_tree$finalModel)
 y_hat_tree <- predict(train_tree, test)
 
 # Evaluate Tree Model

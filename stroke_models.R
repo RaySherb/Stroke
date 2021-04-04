@@ -48,7 +48,7 @@ rm(test_index)
 
 # Models
 #######################################################################################################
-# Descision Tree
+# Decision Tree
 #----------------------------------------------------
 train_tree <- train(stroke ~ .,
                     method='rpart',
@@ -65,6 +65,54 @@ roc.curve(test$stroke, y_hat_tree) #ROSE
 F_meas(y_hat_tree, test$stroke)
 # F1=NA
 #######################################################################################################
+
+
+# Data Balancing
+#######################################################################################################
+# Unbalanced
+table(train$stroke)
+prop.table(table(train$stroke))
+
+# Over-sample
+train.over <- ovun.sample(stroke ~ ., data=train, method='over', N=2183*2)$data
+table(train.over$stroke)
+
+# Under-sample
+train.under <- ovun.sample(stroke ~ ., data=train, method='under', N=116*2)$data
+table(train.under$stroke)
+
+# Over & Under
+train.both <- ovun.sample(stroke ~ ., data=train, method='both', p=0.5)$data
+table(train.both$stroke)
+
+# Inject Synthetic Data
+train.rose <- ROSE(stroke ~ ., data=train, seed = 69)$data
+table(train.rose$stroke)
+
+# Select best data-balancing technique based on ROC of tree model
+tree.over <- train(stroke ~ ., method='rpart', data=train.over, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
+tree.under <- train(stroke ~ ., method='rpart', data=train.under, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
+tree.both <- train(stroke ~ ., method='rpart', data=train.both, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
+tree.rose <- train(stroke ~ ., method='rpart', data=train.rose, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
+pred.tree.over <- predict(tree.over, test)
+pred.tree.under <- predict(tree.under, test)
+pred.tree.both <- predict(tree.both, test)
+pred.tree.rose <- predict(tree.rose, test)
+roc.curve(test$stroke, y_hat_tree, col=2, lwd=2)
+roc.curve(test$stroke, pred.tree.over, add.roc = T, col=3, lwd=2)
+roc.curve(test$stroke, pred.tree.under, add.roc = T, col=4, lwd=2)
+roc.curve(test$stroke, pred.tree.both, add.roc = T, col=5, lwd=2)
+roc.curve(test$stroke, pred.tree.rose, add.roc = T, col=6, lwd=2)
+legend('bottomright', c('Not Balanced', 'Over', 'Under', 'Both', 'ROSE'), col=2:6, lwd=2)
+
+# Remove un-needed data & Keep ROSE data
+rm(train.over, train.under, train.both, tree.over, tree.under, tree.both, pred.over, pred.under, pred.both,
+   train, train_tree, y_hat_tree, pred.tree.both, pred.tree.over, pred.tree.under)
+# ROSE tree measures
+confusionMatrix(pred.tree.rose, test$stroke)#$overall["Accuracy"]
+accuracy.meas(test$stroke, pred.tree.rose) #ROSE
+#######################################################################################################
+
 
 
 # Change the beta value

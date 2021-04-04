@@ -32,13 +32,14 @@ stroke <- stroke %>% mutate(smoking_status=fct_relevel(as.factor(smoking_status)
                                                        'Unknown',
                                                        'never smoked'))
 # Other variables as factors will help models later on
+# Reorder stroke levels for confusion matrix formatting
 stroke <- stroke %>% mutate(gender=as.factor(gender),
                             hypertension=as.factor(hypertension),
                             heart_disease=as.factor(heart_disease),
                             ever_married=as.factor(ever_married),
                             work_type=as.factor(work_type),
                             Residence_type=as.factor(Residence_type),
-                            stroke=as.factor(stroke),
+                            stroke=fct_relevel(as.factor(stroke), '1', '0'),
                             bmi=as.numeric(bmi)) # bmi has NA's
 
 # Replace NA values in BMI to mean
@@ -102,7 +103,7 @@ stroke %>% group_by(stroke, hypertension) %>% summarise(n=n()) %>%
   geom_col(position='fill')
 
 # BMI
-stroke %>% #mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>% 
+stroke %>% 
   arrange(stroke) %>%
   ggplot(aes(x=bmi, y=avg_glucose_level, color=stroke))+
   geom_point()
@@ -122,19 +123,22 @@ test <- strokes[test_index, ]
 train <- strokes[-test_index, ]
 rm(test_index)
 
-# Descision Tree
+# Decision Tree
 #----------------------------------------------------
 train_tree <- train(stroke ~ .,
                     method='rpart',
                     data=train,
-                    tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
-ggplot(train_tree, highlight=T)
+                    tuneGrid=data.frame(cp=seq(0.005, 0.03, len=25)))
+# ggplot(train_tree, highlight=T)
 y_hat_tree <- predict(train_tree, test)
 
 # Evaluate Tree Model
-confusionMatrix(y_hat_tree, test$stroke)$overall["Accuracy"]
-accuracy.meas(test$stroke, y_hat_tree) #ROSE
+confusionMatrix(y_hat_tree, test$stroke)
+confusionMatrix(y_hat_tree, test$stroke)$byClass
+# Sensitivity = 0; Predicting 0 for all cases. F1=NA
 roc.curve(test$stroke, y_hat_tree) #ROSE
+F_meas(y_hat_tree, test$stroke)
+# F1=NA
 #######################################################################################################
 
 
@@ -180,9 +184,7 @@ legend('bottomright', c('Not Balanced', 'Over', 'Under', 'Both', 'ROSE'), col=2:
 # Remove un-needed data & Keep ROSE data
 rm(train.over, train.under, train.both, tree.over, tree.under, tree.both, pred.over, pred.under, pred.both,
    train, train_tree, y_hat_tree, pred.tree.both, pred.tree.over, pred.tree.under)
-# ROSE tree measures
-confusionMatrix(pred.tree.rose, test$stroke)#$overall["Accuracy"]
-accuracy.meas(test$stroke, pred.tree.rose) #ROSE
+
 #######################################################################################################
 
 
@@ -191,7 +193,11 @@ accuracy.meas(test$stroke, pred.tree.rose) #ROSE
 #######################################################################################################
 # Tree
 #----------------------------------------------------
+confusionMatrix(pred.tree.rose, test$stroke)
+confusionMatrix(pred.tree.rose, test$stroke)$byClass
+F_meas(pred.tree.rose, test$stroke)
 roc.curve(test$stroke, pred.tree.rose, col=2, lwd=2)
+
 
 # GLM
 #----------------------------------------------------

@@ -146,24 +146,28 @@ F_meas(y_hat_tree, test$stroke)
 # Data Balancing
 #######################################################################################################
 # Unbalanced
-table(train$stroke)
-prop.table(table(train$stroke))
+unbalanced.table <- table(train$stroke)
 
 # Over-sample
 train.over <- ovun.sample(stroke ~ ., data=train, method='over', N=2183*2)$data
-table(train.over$stroke)
+over.table <- table(train.over$stroke)
 
 # Under-sample
 train.under <- ovun.sample(stroke ~ ., data=train, method='under', N=116*2)$data
-table(train.under$stroke)
+under.table <- table(train.under$stroke)
 
 # Over & Under
 train.both <- ovun.sample(stroke ~ ., data=train, method='both', p=0.5)$data
-table(train.both$stroke)
+both.table <- table(train.both$stroke)
 
 # Inject Synthetic Data
 train.rose <- ROSE(stroke ~ ., data=train, seed = 69)$data
-table(train.rose$stroke)
+rose.table <- table(train.rose$stroke)
+
+# Table of data-balancing 
+sample_table <- rbind(unbalanced.table, over.table, under.table, both.table, rose.table)
+rownames(sample_table) <- c('Unbalanced', 'Over-Balanced', 'Under-Balanced', 'Both', 'ROSE (Data Injection)')
+sample_table
 
 # Select best data-balancing technique based on ROC of tree model
 tree.over <- train(stroke ~ ., method='rpart', data=train.over, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
@@ -184,6 +188,7 @@ legend('bottomright', c('Not Balanced', 'Over', 'Under', 'Both', 'ROSE'), col=2:
 # Remove un-needed data & Keep ROSE data
 rm(train_tree, y_hat_tree, train.over, train.under, train.both, pred.tree.over, pred.tree.under, pred.tree.both)
 rm(tree.over, tree.under, tree.both)
+rm(unbalanced.table, over.table, under.table, both.table, rose.table)
 #######################################################################################################
 
 
@@ -193,7 +198,7 @@ rm(tree.over, tree.under, tree.both)
 # Tree
 #----------------------------------------------------
 pred.tree.rose <- pred.tree.rose %>% fct_relevel('1', '0')
-confusionMatrix(pred.tree.rose, test$stroke)
+confusionMatrix(pred.tree.rose, test$stroke)$table
 confusionMatrix(pred.tree.rose, test$stroke)$byClass
 F_meas(pred.tree.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.tree.rose, col=2, lwd=2)
@@ -262,15 +267,3 @@ mean(y_hat == test$stroke)
 confusionMatrix(as.factor(y_hat), test$stroke)
 
 legend('bottomright', c('Tree', 'GLM', 'KNN', 'Random Forest', 'LDA', 'Ensemble'), col=c(2:6, 8), lwd=2)
-
-#https://learning.edx.org/course/course-v1:HarvardX+PH125.8x+1T2021/block-v1:HarvardX+PH125.8x+1T2021+type@sequential+block@7e7727ce543b4ed6ae6338626862eada/block-v1:HarvardX+PH125.8x+1T2021+type@vertical+block@4931485b1e0f43239240160db2dcf3d3
-# Ensemble Try v1
-#----------------------------------------------------
-#p.tree <- predict(tree.rose, test, type='prob')
-#p.rf <- predict(rf.rose, test, type='prob')
-#p.glm <- predict(glm.rose, test, type='prob')
-#p.knn <- predict(knn.rose, test, type='prob')
-#p.lda <- predict(lda.rose, test, type='prob')
-#ensemble <- (p.tree + p.lda)/2#(p.tree + p.rf + p.glm + p.knn + p.lda)/5
-#pred.ensemble <- factor(apply(ensemble, 1, which.max)-1)
-#roc.curve(test$stroke, pred.ensemble, add.roc = T, col=18, lwd=2)

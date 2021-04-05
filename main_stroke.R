@@ -199,7 +199,7 @@ rm(unbalanced.table, over.table, under.table, both.table, rose.table)
 #----------------------------------------------------
 pred.tree.rose <- pred.tree.rose %>% fct_relevel('1', '0')
 confusionMatrix(pred.tree.rose, test$stroke)$table
-confusionMatrix(pred.tree.rose, test$stroke)$byClass
+#confusionMatrix(pred.tree.rose, test$stroke)$byClass
 F_meas(pred.tree.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.tree.rose, col=2, lwd=2)
 
@@ -207,16 +207,16 @@ roc.curve(test$stroke, pred.tree.rose, col=2, lwd=2)
 #----------------------------------------------------
 glm.rose <- train(stroke ~ ., method='glm', data=train.rose)
 pred.glm.rose <- predict(glm.rose, test) %>% fct_relevel('1', '0')
-confusionMatrix(pred.glm.rose, test$stroke)
-confusionMatrix(pred.glm.rose, test$stroke)$byClass
+confusionMatrix(pred.glm.rose, test$stroke)$table
+#confusionMatrix(pred.glm.rose, test$stroke)$byClass
 roc.curve(test$stroke, pred.glm.rose, add.roc = T, col=3, lwd=2)
 
 # KNN
 #----------------------------------------------------
 knn.rose <- train(stroke ~ ., method='knn', data=train.rose)
 pred.knn.rose <- predict(knn.rose, test) %>% fct_relevel('1', '0')
-confusionMatrix(pred.knn.rose, test$stroke)
-confusionMatrix(pred.knn.rose, test$stroke)$byClass
+confusionMatrix(pred.knn.rose, test$stroke)$table
+#confusionMatrix(pred.knn.rose, test$stroke)$byClass
 F_meas(pred.knn.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.knn.rose, add.roc = T, col=4, lwd=2)
 
@@ -224,8 +224,8 @@ roc.curve(test$stroke, pred.knn.rose, add.roc = T, col=4, lwd=2)
 #----------------------------------------------------
 rf.rose <- train(stroke ~ ., method='rf', data=train.rose)
 pred.rf.rose <- predict(rf.rose, test) %>% fct_relevel('1', '0')
-confusionMatrix(pred.rf.rose, test$stroke)
-confusionMatrix(pred.rf.rose, test$stroke)$byClass
+confusionMatrix(pred.rf.rose, test$stroke)$table
+#confusionMatrix(pred.rf.rose, test$stroke)$byClass
 F_meas(pred.rf.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.rf.rose, add.roc = T, col=5, lwd=2)
 
@@ -233,8 +233,8 @@ roc.curve(test$stroke, pred.rf.rose, add.roc = T, col=5, lwd=2)
 #----------------------------------------------------
 lda.rose <- train(stroke ~ ., method='lda', data=train.rose)
 pred.lda.rose <- predict(lda.rose, test) %>% fct_relevel('1', '0')
-confusionMatrix(pred.lda.rose, test$stroke)
-confusionMatrix(pred.lda.rose, test$stroke)$byClass
+confusionMatrix(pred.lda.rose, test$stroke)$table
+#confusionMatrix(pred.lda.rose, test$stroke)$byClass
 F_meas(pred.lda.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.lda.rose, add.roc = T, col=6, lwd=2)
 
@@ -264,6 +264,7 @@ votes <- rowMeans(pred == "1")
 # The majority of votes wins
 y_hat <- ifelse(votes > 0.5, "1", "0")
 mean(y_hat == test$stroke)
-confusionMatrix(as.factor(y_hat), test$stroke)
+confusionMatrix(as.factor(y_hat), test$stroke)$table
+F_meas(pred.lda.rose, test$stroke)
 
 legend('bottomright', c('Tree', 'GLM', 'KNN', 'Random Forest', 'LDA', 'Ensemble'), col=c(2:6, 8), lwd=2)

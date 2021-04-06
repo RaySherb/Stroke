@@ -376,7 +376,8 @@ validation_set <- validation_set %>% mutate(gender=as.factor(gender),
                             ever_married=as.factor(ever_married),
                             work_type=as.factor(work_type),
                             Residence_type=as.factor(Residence_type),
-                            stroke=fct_relevel(as.factor(stroke), '1', '0'))  validation_set <- validation_set %>% select(-id, -bmi)
+                            stroke=as.factor(stroke))
+validation_set <- validation_set %>% select(-id, -bmi)
 
 # New factors are removed
 validation_set <- validation_set[validation_set$gender != 'Other',]

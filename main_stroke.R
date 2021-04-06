@@ -111,7 +111,7 @@ stroke %>%
 
 
 
-# Model --WARNING-- AUC was better with the bmi removed!
+# Model 
 #######################################################################################################
 # Remove variables that negatively impact models
 strokes <- stroke %>% select(-bmi, -id)
@@ -198,51 +198,52 @@ rm(unbalanced.table, over.table, under.table, both.table, rose.table)
 # Tree
 #----------------------------------------------------
 pred.tree.rose <- pred.tree.rose %>% fct_relevel('1', '0')
-confusionMatrix(pred.tree.rose, test$stroke)$table
+tree.cm <- confusionMatrix(pred.tree.rose, test$stroke)$table
 #confusionMatrix(pred.tree.rose, test$stroke)$byClass
-F_meas(pred.tree.rose, test$stroke) # beta=0.5
+tree.f <- F_meas(pred.tree.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.tree.rose, col=2, lwd=2)
 
 # GLM
 #----------------------------------------------------
 glm.rose <- train(stroke ~ ., method='glm', data=train.rose)
 pred.glm.rose <- predict(glm.rose, test) %>% fct_relevel('1', '0')
-confusionMatrix(pred.glm.rose, test$stroke)$table
+glm.cm <- confusionMatrix(pred.glm.rose, test$stroke)$table
 #confusionMatrix(pred.glm.rose, test$stroke)$byClass
+glm.f <- F_meas(pred.glm.rose, test$stroke)
 roc.curve(test$stroke, pred.glm.rose, add.roc = T, col=3, lwd=2)
 
 # KNN
 #----------------------------------------------------
 knn.rose <- train(stroke ~ ., method='knn', data=train.rose)
 pred.knn.rose <- predict(knn.rose, test) %>% fct_relevel('1', '0')
-confusionMatrix(pred.knn.rose, test$stroke)$table
+knn.cm <- confusionMatrix(pred.knn.rose, test$stroke)$table
 #confusionMatrix(pred.knn.rose, test$stroke)$byClass
-F_meas(pred.knn.rose, test$stroke) # beta=0.5
+knn.f <- F_meas(pred.knn.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.knn.rose, add.roc = T, col=4, lwd=2)
 
 # Random Forest
 #----------------------------------------------------
 rf.rose <- train(stroke ~ ., method='rf', data=train.rose)
 pred.rf.rose <- predict(rf.rose, test) %>% fct_relevel('1', '0')
-confusionMatrix(pred.rf.rose, test$stroke)$table
+rf.cm <- confusionMatrix(pred.rf.rose, test$stroke)$table
 #confusionMatrix(pred.rf.rose, test$stroke)$byClass
-F_meas(pred.rf.rose, test$stroke) # beta=0.5
+rf.f <- F_meas(pred.rf.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.rf.rose, add.roc = T, col=5, lwd=2)
 
 # LDA
 #----------------------------------------------------
 lda.rose <- train(stroke ~ ., method='lda', data=train.rose)
 pred.lda.rose <- predict(lda.rose, test) %>% fct_relevel('1', '0')
-confusionMatrix(pred.lda.rose, test$stroke)$table
+lda.cm <- confusionMatrix(pred.lda.rose, test$stroke)$table
 #confusionMatrix(pred.lda.rose, test$stroke)$byClass
-F_meas(pred.lda.rose, test$stroke) # beta=0.5
+lda.f <- F_meas(pred.lda.rose, test$stroke) # beta=0.5
 roc.curve(test$stroke, pred.lda.rose, add.roc = T, col=6, lwd=2)
 
 # Ensemble Try v2
 #----------------------------------------------------
 set.seed(69, sample.kind = "Rounding")
 # Machine learning models to implement in ensemble
-models <- c("glm", "lda", "naive_bayes", "svmLinear", "knn", "multinom", "lda", "rf", "adaboost")
+models <- c("glm", "lda", "rpart", "knn", "rf")
 # Fit all the models to the trainging data
 fits <- lapply(models, function(model){ 
   print(model)
@@ -254,17 +255,49 @@ names(fits) <- models
 # Generate a matrix of predictions
 pred <- sapply(fits, function(object) 
   predict(object, newdata = test))
-dim(pred)
-# Get the average accuracy of each model
-acc <- colMeans(pred == test$stroke)
-# Get the mean accuracy of all models
-mean(acc)
+
 # Each model gets a vote
 votes <- rowMeans(pred == "1")
-# The majority of votes wins
-y_hat <- ifelse(votes > 0.5, "1", "0")
-mean(y_hat == test$stroke)
-confusionMatrix(as.factor(y_hat), test$stroke)$table
-F_meas(pred.lda.rose, test$stroke)
+# The majority of votes predicts the result
+y_hat <- ifelse(votes > 0.5, "1", "0") %>% fct_relevel('1', '0')
+ensemble.cm <- confusionMatrix(as.factor(y_hat), test$stroke)$table
+ensemble.f <- F_meas(pred.lda.rose, test$stroke)
 
 legend('bottomright', c('Tree', 'GLM', 'KNN', 'Random Forest', 'LDA', 'Ensemble'), col=c(2:6, 8), lwd=2)
+
+
+# Table of F values for each method
+tibble('Method' = c('Tree', 'GLM', 'KNN', 'Random Forest', 'LDA', 'Ensemble'),
+       'F' = c(tree.f, glm.f, knn.f, rf.f, lda.f, ensemble.f))
+#######################################################################################################
+
+
+# Validation Set
+#######################################################################################################
+
+# Munge the validation set
+validation_set <- validation_set %>% mutate(gender=as.factor(gender),
+                            hypertension=as.factor(hypertension),
+                            heart_disease=as.factor(heart_disease),
+                            ever_married=as.factor(ever_married),
+                            work_type=as.factor(work_type),
+                            Residence_type=as.factor(Residence_type),
+                            stroke=fct_relevel(as.factor(stroke), '1', '0')) %>%
+  select(-id, -bmi)
+
+# Data injection on complete strokes data set
+final.rose <- ROSE(stroke ~ ., data=strokes, seed = 69)$data
+
+# Train with complete strokes data set
+final.model <- train(stroke ~ ., method='glm', data=final.rose)
+final.pred <- predict(final.model, validation_set) %>% fct_relevel('1', '0')
+final.cm <- confusionMatrix(final.pred, validation_set$stroke)$table
+#confusionMatrix(pred.glm.rose, test$stroke)$byClass
+final.f <- F_meas(pred.glm.rose, test$stroke)
+
+
+
+
+
+
+

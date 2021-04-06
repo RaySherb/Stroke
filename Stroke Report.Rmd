@@ -13,14 +13,16 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Strokes account for 11% of global deaths according to the WHO (World Health Organization). The goal of this project is to develop a predictive model that can be used as an aid to identify at-risk individuals. The data is downloaded from kaggle.com. The author, fedesoriano, states the source is confidential. 
 
-The data set contains 5110 observations and 12 predictors including the binary outcome indicating stroke. The predictors also include an anonymous id, and information for gender, age, hypertension, heart disease, ever married, work type, residence type, average glucose level, body mass index, and smoking status. No other background information is given about the data. 
+The data set contains 5110 observations and 12 predictors including the binary outcome indicating stroke. The predictors also include an anonymous id, and information for gender, age, hypertension, heart disease, marital status, work type, residence type, average glucose level, body mass index, and smoking status. No other background information is given about the data. 
 
-After a validation set has been partitioned from the data, the remaining data will be cleaned, explored, and used to build several models. The best model will be tested against the validation set, and the resulting scores will determine if the goal of this project succeeded. The main score that will be used to grade performance will be the **Precision**. Precision is defined as the proportion of predicted positive cases that are actually positive.
+After a validation set has been partitioned from the data, the remaining data will be cleaned, explored, and used to build several models. The best model will be tested against the validation set, and the resulting scores will determine if the goal of this project succeeded. The main score that will be used to grade performance will be the **F1 score**. The F1 score is a harmonic average between precision and recall, and is a popular single number summary.
 
 # Method
 
 The data was downloaded as a zip file from the kaggle website, extracted into the working directory of this project, and read into R. Because the data set is relatively small, only 10% was set aside as the validation set. The remaining data is cleaned by setting the predictor values from character types to either numeric values or factors.
 The bmi predictor has numerous NA values that will not work with the machine learning algorithms. For now these NA values are replaced with the average value for the sake of exploration.
+
+
 ```{r, include=F}
 # Load
 #######################################################################################################
@@ -56,6 +58,7 @@ stroke <- stroke %>% mutate(smoking_status=fct_relevel(as.factor(smoking_status)
                                                        'Unknown',
                                                        'never smoked'))
 # Other variables as factors will help models later on
+# Reorder stroke levels for confusion matrix formatting
 stroke <- stroke %>% mutate(gender=as.factor(gender),
                             hypertension=as.factor(hypertension),
                             heart_disease=as.factor(heart_disease),
@@ -70,7 +73,11 @@ stroke$bmi[is.na(stroke$bmi)] <- mean(stroke$bmi, na.rm = TRUE)
 #######################################################################################################
 
 ```
+
+
 The first plot shows that the data contains more observations of females the proportional difference in strokes is not obvious however.
+
+
 ```{r, echo=F, message=F}
 # Barplot of stroke & gender
 stroke %>% group_by(stroke, gender) %>% summarise(n=n()) %>%
@@ -80,7 +87,11 @@ stroke %>% group_by(stroke, gender) %>% summarise(n=n()) %>%
   xlab('Stroke')+
   scale_fill_brewer(palette = "Pastel1")
 ```
+
+
 This plot shows that the rate of strokes is about the same between genders.
+
+
 ```{r, echo=F, message=F}
 # The dataset has a lot more females, and about equal amount of strokes
 stroke %>% group_by(stroke, gender) %>% summarise(n=n()) %>%
@@ -91,7 +102,11 @@ stroke %>% group_by(stroke, gender) %>% summarise(n=n()) %>%
   ylab('Proportion')+
   scale_fill_brewer(palette = "Dark2")
 ```
+
+
 The next plot shows a cumulative distribution function of stroke patients for age and gender. Females have an exponential curve where the liklihood of a stroke increases rather smoothly. Men start off low and see a sharp increase in their mid to late 50's, overtaking the women until they even out in the early 70's.
+
+
 ```{r, echo=F, message=F}
 # CDF of age for people with strokes
 stroke[stroke$stroke == 1, ] %>% group_by(gender) %>%
@@ -100,13 +115,21 @@ stroke[stroke$stroke == 1, ] %>% group_by(gender) %>%
   scale_y_continuous(label=scales::percent)+
   ylab('Strokes Occured')
 ```
+
+
 The next plot shows a histogram of average glucose level. The distribution is bimodal with the higher glucose levels being less prevalent and much higher percentage of strokes.
+
+
 ```{r, echo=F, message=F}
 stroke %>% group_by(stroke) %>%
   ggplot(aes(x=avg_glucose_level, color=stroke))+
   geom_histogram(bins=30)
 ```
+
+
 The next bar plot shows a bar of stroke positive and a bar of stroke negative cases, filled in with smoking status. Non smokers appear equally likely to get a stroke. The same is true for patients who smoke their entire life. This graph suggests that quitting increases the chances of getting a stroke. 
+
+
 ```{r, echo=F, message=F}
 # Smoking Status
 stroke %>% group_by(smoking_status, stroke) %>% summarise(n=n()) %>%
@@ -114,7 +137,11 @@ stroke %>% group_by(smoking_status, stroke) %>% summarise(n=n()) %>%
   geom_col(position='fill', color='black')+
   scale_y_continuous(label=scales::percent)
 ```
+
+
 It is not clear if the stroke cases quit smoking for a few days and promptly relapsed, or if the non stroke patients quit smoking after only several years of smoking. There is no way to account for length of smoking abstinence with the given data, however the next plot shows a CDF of strokes and age for each of the smoking categories. This plot suggests that smokers get strokes earlier than non smokers, and former smokers are clearly having strokes at older ages than people who did not quit.
+
+
 ```{r, echo=F, message=F}
 stroke[stroke$stroke == 1, ] %>% group_by(smoking_status) %>%
      ggplot(aes(x=age, color=smoking_status))+
@@ -122,7 +149,11 @@ stroke[stroke$stroke == 1, ] %>% group_by(smoking_status) %>%
      scale_y_continuous(label=scales::percent)+
      ylab('Strokes Occured')
 ```
+
+
 The next plot shows that hypertension is higher in stroke patients than non stroke patients.
+
+
 ```{r, echo=F, message=F}
 # Hypertension (high blood pressure), heart disease, & high bmi
 stroke %>% group_by(stroke, hypertension) %>% summarise(n=n()) %>%
@@ -131,7 +162,11 @@ stroke %>% group_by(stroke, hypertension) %>% summarise(n=n()) %>%
   ylab('Proportion')+
   geom_col(position='fill')
 ```
+
+
 The next plot trys to find a relationship between bmi and average glucose level. A relationship with bmi is wanted because there are so many NA values in the data. As it appears there is no strong relationship, and the average value is skewing the data, the bmi predictor must be dropped from the data before moving onto the model building.
+
+
 ```{r, echo=F, message=F}
 # BMI
 stroke %>% #mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>% 
@@ -139,59 +174,79 @@ stroke %>% #mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>%
   ggplot(aes(x=bmi, y=avg_glucose_level, color=stroke))+
   geom_point()
 ```
-So far there is no single obvious predictor for identifying stokes. Instead, each predictor shows some small predictive power. Also as we have seen the data is skewed with very little data for stroke cases. 
+
+
+So far there is no single obvious predictor for identifying stokes. Instead, each predictor shows some weak predictive power. Also as we have seen the data is skewed with very little data for stroke cases. 
 
 Before building the first model it is necessary to to remove the bmi and id predictors. The NA values will cause errors in the machine learning algorithms and the ids  shouldn't have any predictive power. A training set and test set are then partitioned from the data, again at 9 to 1 ratio due to the size of the data.
+
+
 ```{r, include=F}
-# Remove variables that negatively impact models
-stroke <- stroke %>% select(-bmi, -id)
+stroke <- stroke %>% mutate(stroke=fct_relevel(as.factor(stroke), '1', '0'))
+strokes <- stroke %>% select(-bmi, -id)
 
 # Get a test/train set of data
 set.seed(69, sample.kind = 'Rounding')
-test_index <- createDataPartition(stroke$stroke, times = 1, p = 0.1, list = FALSE)
-test <- stroke[test_index, ]
-train <- stroke[-test_index, ]
+test_index <- createDataPartition(strokes$stroke, times = 1, p = 0.1, list = FALSE)
+test <- strokes[test_index, ]
+train <- strokes[-test_index, ]
 rm(test_index)
 ```
+
+
 The first model, a decision tree, is trained and tested giving the results below:
+
+
 ```{r, echo=F}
-# Descision Tree
+# Decision Tree
 #----------------------------------------------------
 train_tree <- train(stroke ~ .,
                     method='rpart',
                     data=train,
-                    tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
-ggplot(train_tree, highlight=T)
+                    tuneGrid=data.frame(cp=seq(0.005, 0.03, len=25)))
+# ggplot(train_tree, highlight=T)
 y_hat_tree <- predict(train_tree, test)
 
 # Evaluate Tree Model
-confusionMatrix(y_hat_tree, test$stroke)$overall["Accuracy"]
-#accuracy.meas(test$stroke, y_hat_tree) #ROSE
+first.cm <- confusionMatrix(y_hat_tree, test$stroke)$table
+knitr::kable(first.cm, caption = 'Decision Tree Confusion Matrix')
+# confusionMatrix(y_hat_tree, test$stroke)$byClass
+# Sensitivity = 0; Predicting 0 for all cases. F1=NA
 roc.curve(test$stroke, y_hat_tree) #ROSE
+F_meas(y_hat_tree, test$stroke)
 ```
-It is obvious that the unbalanced nature of the data is effecting the model. To remedy this, the ROSE package will be used to try several approaches of data balancing. Over-sampling replicates random observations in the minority class until meeting a predefined ratio, this approach has a greater risk of overfitting the data. Under-sampling is a method of randomly removing observations in the majority class until meeting a predefined ratio, this approach loses a significant portion of the data. The ROSE package makes implementing both of these methods easy, and provides two additional methods. The first is a combination of the over-sampling and under-sampling methods, and the second creates synthetic data that is inserted into the minority class. The resulting dataset sizes and the ROC curves when using these methods is shown below.
+
+
+It is obvious that the unbalanced nature of the data is effecting the model. To remedy this, the ROSE package will be used to try several approaches of data balancing. Over-sampling replicates random observations in the minority class until meeting a predefined ratio, this approach has a greater risk of overfitting the data. Under-sampling is a method of randomly removing observations in the majority class until meeting a predefined ratio, this approach loses a significant portion of the data. The ROSE package makes implementing both of these methods easy, and provides two additional methods. The first is a combination of the over-sampling and under-sampling methods, and the second method, refered to as 'Rose', creates synthetic data that is inserted into the minority class. The resulting dataset sizes and the ROC curves when using these methods is shown below.
+
+
 ```{r, echo=F, message=F}
 # Data Balancing
 #######################################################################################################
 # Unbalanced
-table(train$stroke)
-prop.table(table(train$stroke))
+unbalanced.table <- table(train$stroke)
 
 # Over-sample
 train.over <- ovun.sample(stroke ~ ., data=train, method='over', N=2183*2)$data
-table(train.over$stroke)
+over.table <- table(train.over$stroke)
 
 # Under-sample
 train.under <- ovun.sample(stroke ~ ., data=train, method='under', N=116*2)$data
-table(train.under$stroke)
+under.table <- table(train.under$stroke)
 
 # Over & Under
 train.both <- ovun.sample(stroke ~ ., data=train, method='both', p=0.5)$data
-table(train.both$stroke)
+both.table <- table(train.both$stroke)
 
 # Inject Synthetic Data
 train.rose <- ROSE(stroke ~ ., data=train, seed = 69)$data
-table(train.rose$stroke)
+rose.table <- table(train.rose$stroke)
+
+# Table of data-balancing 
+sample_table <- rbind(unbalanced.table, over.table, under.table, both.table, rose.table)
+rownames(sample_table) <- c('Unbalanced', 'Over-Balanced', 'Under-Balanced', 'Both', 'ROSE (Data Injection)')
+knitr::kable(sample_table, caption = 'Data Balancing Results')
+
 
 # Select best data-balancing technique based on ROC of tree model
 tree.over <- train(stroke ~ ., method='rpart', data=train.over, tuneGrid=data.frame(cp=seq(0, 0.005, len=25)))
@@ -209,12 +264,133 @@ roc.curve(test$stroke, pred.tree.both, add.roc = T, col=5, lwd=2)
 roc.curve(test$stroke, pred.tree.rose, add.roc = T, col=6, lwd=2)
 legend('bottomright', c('Not Balanced', 'Over', 'Under', 'Both', 'ROSE'), col=2:6, lwd=2)
 
+# Remove un-needed data & Keep ROSE data
+rm(train_tree, y_hat_tree, train.over, train.under, train.both, pred.tree.over, pred.tree.under, pred.tree.both)
+rm(tree.over, tree.under, tree.both)
+rm(unbalanced.table, over.table, under.table, both.table, rose.table)
 ```
-The ROSE method of injecting synthetic data gives the best results. So this data is used with several other machine learning algorithms below.
+
+
+The ROSE method of injecting synthetic data gives the best results. So this data is used with several other machine learning algorithms, the results of which are shown below.
+
+
+```{r, echo=F, message=F, warning=F}
+
+# Model Part 2
+#######################################################################################################
+# Tree
+#----------------------------------------------------
+pred.tree.rose <- pred.tree.rose %>% fct_relevel('1', '0')
+tree.cm <- confusionMatrix(pred.tree.rose, test$stroke)$table
+knitr::kable(tree.cm, caption = 'Decision Tree Confusion Matrix')
+#confusionMatrix(pred.tree.rose, test$stroke)$byClass
+tree.f <- F_meas(pred.tree.rose, test$stroke) # beta=0.5
+roc.curve(test$stroke, pred.tree.rose, col=2, lwd=2)
+
+# GLM
+#----------------------------------------------------
+glm.rose <- train(stroke ~ ., method='glm', data=train.rose)
+pred.glm.rose <- predict(glm.rose, test) %>% fct_relevel('1', '0')
+glm.cm <- confusionMatrix(pred.glm.rose, test$stroke)$table
+knitr::kable(glm.cm, caption = 'Generalized Linear Model Confusion Matrix')
+#confusionMatrix(pred.glm.rose, test$stroke)$byClass
+glm.f <- F_meas(pred.glm.rose, test$stroke)
+roc.curve(test$stroke, pred.glm.rose, add.roc = T, col=3, lwd=2)
+
+# KNN
+#----------------------------------------------------
+knn.rose <- train(stroke ~ ., method='knn', data=train.rose)
+pred.knn.rose <- predict(knn.rose, test) %>% fct_relevel('1', '0')
+knn.cm <- confusionMatrix(pred.knn.rose, test$stroke)$table
+knitr::kable(knn.cm, caption = 'K Nearest Neighbors Confusion Matrix')
+#confusionMatrix(pred.knn.rose, test$stroke)$byClass
+knn.f <- F_meas(pred.knn.rose, test$stroke) # beta=0.5
+roc.curve(test$stroke, pred.knn.rose, add.roc = T, col=4, lwd=2)
+
+# Random Forest
+#----------------------------------------------------
+rf.rose <- train(stroke ~ ., method='rf', data=train.rose)
+pred.rf.rose <- predict(rf.rose, test) %>% fct_relevel('1', '0')
+rf.cm <- confusionMatrix(pred.rf.rose, test$stroke)$table
+knitr::kable(rf.cm, caption = 'Random Forest Confusion Matrix')
+#confusionMatrix(pred.rf.rose, test$stroke)$byClass
+rf.f <- F_meas(pred.rf.rose, test$stroke) # beta=0.5
+roc.curve(test$stroke, pred.rf.rose, add.roc = T, col=5, lwd=2)
+
+# LDA
+#----------------------------------------------------
+lda.rose <- train(stroke ~ ., method='lda', data=train.rose)
+pred.lda.rose <- predict(lda.rose, test) %>% fct_relevel('1', '0')
+lda.cm <- confusionMatrix(pred.lda.rose, test$stroke)$table
+knitr::kable(lda.cm, caption = 'Linear Discriminate Analysis Confusion Matrix')
+#confusionMatrix(pred.lda.rose, test$stroke)$byClass
+lda.f <- F_meas(pred.lda.rose, test$stroke) # beta=0.5
+roc.curve(test$stroke, pred.lda.rose, add.roc = T, col=6, lwd=2)
+
+# Ensemble Try v2
+#----------------------------------------------------
+set.seed(69, sample.kind = "Rounding")
+# Machine learning models to implement in ensemble
+models <- c("glm", "lda", "rpart", "knn", "rf")
+# Fit all the models to the trainging data
+fits <- lapply(models, function(model){ 
+  # print(model)
+  train(stroke ~ ., method = model, data = train.rose)
+}) 
+# column names as the model names
+names(fits) <- models
+
+# Generate a matrix of predictions
+pred <- sapply(fits, function(object) 
+  predict(object, newdata = test))
+
+# Each model gets a vote
+votes <- rowMeans(pred == "1")
+# The majority of votes predicts the result
+y_hat <- ifelse(votes > 0.5, "1", "0") %>% fct_relevel('1', '0')
+ensemble.cm <- confusionMatrix(as.factor(y_hat), test$stroke)$table
+knitr::kable(ensemble.cm, caption = 'Ensemble Confusion Matrix')
+ensemble.f <- F_meas(pred.lda.rose, test$stroke)
+
+legend('bottomright', c('Tree', 'GLM', 'KNN', 'Random Forest', 'LDA', 'Ensemble'), col=c(2:6, 8), lwd=2)
+
+
+# Table of F values for each method
+fs <- tibble('Method' = c('Tree', 'GLM', 'KNN', 'Random Forest', 'LDA', 'Ensemble'),
+       'F' = c(tree.f, glm.f, knn.f, rf.f, lda.f, ensemble.f))
+knitr::kable(fs, caption = 'F1 Values')
+```
 
 
 
+The algorithms used were the decision tree, a generalized linear model, K nearest neighbors, a random forest, linear discriminate analysis, and an ensemble which combined all of these methods. The 'GLM' and 'Tree' methods tied for the best F1 score. The 'GLM' model was chosen to train the final model before testing on the validation set. First all the 'ROSE' method was used to inject data into the new training set. The final model was trained with this data. The validation set was munged to be in the correct format, and used to generate predictions. The final model results are shown below.
 
+```{r, echo=F, message=F, warning=F}
+# Validation Set
+#######################################################################################################
+
+# Munge the validation set
+validation_set <- validation_set %>% mutate(gender=as.factor(gender),
+                            hypertension=as.factor(hypertension),
+                            heart_disease=as.factor(heart_disease),
+                            ever_married=as.factor(ever_married),
+                            work_type=as.factor(work_type),
+                            Residence_type=as.factor(Residence_type),
+                            stroke=fct_relevel(as.factor(stroke), '1', '0')) %>%
+  select(-id, -bmi)
+
+# Data injection on complete strokes data set
+final.rose <- ROSE(stroke ~ ., data=strokes, seed = 69)$data
+
+# Train with complete strokes data set
+final.model <- train(stroke ~ ., method='glm', data=final.rose)
+final.pred <- predict(final.model, validation_set) %>% fct_relevel('1', '0')
+final.cm <- confusionMatrix(final.pred, validation_set$stroke)$table
+#confusionMatrix(pred.glm.rose, test$stroke)$byClass
+final.f <- F_meas(pred.glm.rose, test$stroke)
+knitr::kable(final.cm, caption = 'Validation set Confusion Matrix')
+F_meas(pred.glm.rose, test$stroke)
+```
 
 
 # Citation

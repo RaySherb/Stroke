@@ -285,6 +285,9 @@ validation_set <- validation_set %>% mutate(gender=as.factor(gender),
                             stroke=fct_relevel(as.factor(stroke), '1', '0')) %>%
   select(-id, -bmi)
 
+# New factors are removed
+validation_set <- validation_set[validation_set$gender != 'Other',]
+
 # Data injection on complete strokes data set
 final.rose <- ROSE(stroke ~ ., data=strokes, seed = 69)$data
 
